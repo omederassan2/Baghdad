@@ -1,192 +1,121 @@
 <!DOCTYPE html>
-<html lang="ar" dir="rtl">
+<html lang="ar">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>نظام الحضور والانصراف</title>
-    <style>
-        body {
-            font-family: 'Arial Arabic', Tahoma, sans-serif;
-            background-color: #f5f5f5;
-            padding: 20px;
-            text-align: center;
-        }
-        .container {
-            background: white;
-            max-width: 500px;
-            margin: 0 auto;
-            padding: 25px;
-            border-radius: 10px;
-            box-shadow: 0 0 15px rgba(0,0,0,0.1);
-        }
-        /* ... (ابقى الأنماط الأخرى كما هي) ... */
-    </style>
+  <meta charset="UTF-8" />
+  <title>تسجيل الحضور</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      text-align: center;
+      margin-top: 50px;
+      direction: rtl;
+    }
+    #nameForm, #buttons {
+      margin-top: 20px;
+    }
+    button {
+      margin: 10px;
+      padding: 10px 20px;
+      font-size: 18px;
+    }
+  </style>
 </head>
 <body>
-    <div class="container">
-        <h1>نظام تسجيل الحضور والانصراف</h1>
-        
-        <div id="registration">
-            <div class="form-group">
-                <label for="employeeName">الاسم الثنائي الكامل:</label>
-                <input type="text" id="employeeName" placeholder="الاسم كما في السجلات">
-            </div>
-            <button onclick="registerEmployee()">تسجيل الدخول للنظام</button>
-        </div>
-        
-        <div class="buttons" style="display:none;">
-            <button class="check-in" onclick="logAction('دخول')">تسجيل الحضور</button>
-            <button class="check-out" onclick="logAction('انصراف')">تسجيل الانصراف</button>
-        </div>
-        
-        <div id="status" style="display:none;"></div>
-    </div>
+  <h1>نظام الحضور والانصراف</h1>
 
-    <script>
-        // 1. إعدادات النظام
-        const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyBAZXK0HIPMWodMnCQZBOYrnv810M0VdOW9R49C9BPCC1UmlpDqy5TKNvPT4dioPpw/exec';
-        const COMPANY_LOCATION = { lat: 36.187569088643755, lng: 44.02087388992448 };
-        const ALLOWED_DISTANCE = 9000; // 1 كيلومتر
+  <div id="nameForm">
+    <p>الرجاء إدخال اسمك الثنائي:</p>
+    <input type="text" id="nameInput" placeholder="الاسم الكامل" />
+    <button onclick="saveName()">تسجيل</button>
+  </div>
 
-        // 2. تحميل البيانات عند بدء التشغيل
-        document.addEventListener('DOMContentLoaded', () => {
-            const savedName = localStorage.getItem('employeeName');
-            if (savedName) {
-                document.getElementById('registration').style.display = 'none';
-                document.querySelector('.buttons').style.display = 'block';
-            }
+  <div id="buttons" style="display: none;">
+    <p>مرحبًا <span id="userName"></span></p>
+    <button onclick="submitAction('وصل')">📍 وصلت إلى الشركة</button>
+    <button onclick="submitAction('خرج')">🚪 خرجت من الشركة</button>
+    <p id="status"></p>
+  </div>
+
+  <script>
+    const companyLat = 36.187569088643755; // ضع هنا إحداثيات الشركة (Latitude)
+    const companyLng = 44.02087388992448; // ضع هنا إحداثيات الشركة (Longitude)
+    const maxDistance = 9000; // 1000 متر
+
+    const scriptURL = "https://script.google.com/macros/s/AKfycbxzv_rZgIjUJJwIdk9DDVlkn9gpXs-qyup94FLsOKICDqLgE7WfK66gmKh0D7s7AeL2/exec";
+
+    window.onload = function () {
+      const name = localStorage.getItem("employeeName");
+      if (name) {
+        document.getElementById("nameForm").style.display = "none";
+        document.getElementById("buttons").style.display = "block";
+        document.getElementById("userName").innerText = name;
+      }
+    };
+
+    function saveName() {
+      const name = document.getElementById("nameInput").value.trim();
+      if (name.length < 3) {
+        alert("يرجى إدخال الاسم بشكل صحيح.");
+        return;
+      }
+      localStorage.setItem("employeeName", name);
+      location.reload();
+    }
+
+    function submitAction(actionType) {
+      const name = localStorage.getItem("employeeName");
+      if (!navigator.geolocation) {
+        alert("المتصفح لا يدعم تحديد الموقع.");
+        return;
+      }
+
+      navigator.geolocation.getCurrentPosition(position => {
+        const lat = position.coords.latitude;
+        const lng = position.coords.longitude;
+
+        const distance = getDistanceFromLatLonInMeters(lat, lng, companyLat, companyLng);
+        if (distance > maxDistance) {
+          alert("يجب أن تكون داخل محيط الشركة (1000 متر).");
+          return;
+        }
+
+        const payload = {
+          name: name,
+          action: actionType,
+          timestamp: new Date().toISOString()
+        };
+
+        fetch(scriptURL, {
+          method: 'POST',
+          body: JSON.stringify(payload)
+        })
+        .then(res => res.text())
+        .then(response => {
+          document.getElementById("status").innerText = `✅ تم تسجيل ${actionType} بنجاح`;
+        })
+        .catch(err => {
+          document.getElementById("status").innerText = `❌ حدث خطأ أثناء الإرسال`;
         });
 
-        // 3. تسجيل الموظف
-        function registerEmployee() {
-            const nameInput = document.getElementById('employeeName');
-            const name = nameInput.value.trim();
-            
-            if (name.length < 5 || !name.includes(' ')) {
-                showStatus('الرجاء إدخال الاسم الثنائي الكامل', 'error');
-                return;
-            }
-            
-            localStorage.setItem('employeeName', name);
-            nameInput.value = '';
-            
-            document.getElementById('registration').style.display = 'none';
-            document.querySelector('.buttons').style.display = 'block';
-            showStatus('تم تسجيل الدخول بنجاح', 'success');
-        }
+      }, () => {
+        alert("فشل في الحصول على الموقع.");
+      });
+    }
 
-        // 4. تسجيل الحركات
-        async function logAction(actionType) {
-            try {
-                showStatus('جارٍ التحقق من الموقع...', 'info');
-                
-                // الحصول على الموقع الجغرافي
-                const position = await getLocation();
-                const distance = calculateDistance(
-                    position.coords.latitude,
-                    position.coords.longitude,
-                    COMPANY_LOCATION.lat,
-                    COMPANY_LOCATION.lng
-                );
-                
-                if (distance > ALLOWED_DISTANCE) {
-                    throw new Error(`خارج نطاق الشركة (${Math.round(distance)} متر)`);
-                }
-                
-                // إعداد البيانات للإرسال
-                const payload = {
-                    name: localStorage.getItem('employeeName'),
-                    action: actionType,
-                    latitude: position.coords.latitude,
-                    longitude: position.coords.longitude
-                };
-                
-                // إرسال البيانات
-                showStatus('جارٍ إرسال البيانات...', 'info');
-                
-                const response = await fetch(SCRIPT_URL, {
-                    method: 'POST',
-                    headers: { 
-                        'Content-Type': 'application/json',
-                        'Accept': 'application/json'
-                    },
-                    body: JSON.stringify(payload),
-                    redirect: 'follow'
-                });
-                
-                // معالجة الرد
-                const result = await response.json();
-                
-                if (result.status === 'success') {
-                    showStatus(`تم التسجيل بنجاح | ${new Date().toLocaleTimeString()}`, 'success');
-                } else {
-                    throw new Error(result.message || 'فشل في التسجيل');
-                }
-                
-            } catch (error) {
-                console.error('Error Details:', {
-                    error: error.message,
-                    stack: error.stack,
-                    payload: payload
-                });
-                showStatus(`خطأ: ${error.message}`, 'error');
-            }
-        }
+    function getDistanceFromLatLonInMeters(lat1, lon1, lat2, lon2) {
+      const R = 6371e3; // متر
+      const φ1 = lat1 * Math.PI/180;
+      const φ2 = lat2 * Math.PI/180;
+      const Δφ = (lat2 - lat1) * Math.PI/180;
+      const Δλ = (lon2 - lon1) * Math.PI/180;
 
-        // 5. دوال مساعدة
-        function getLocation() {
-            return new Promise((resolve, reject) => {
-                if (!navigator.geolocation) {
-                    reject(new Error('المتصفح لا يدعم خدمة الموقع'));
-                }
-                
-                navigator.geolocation.getCurrentPosition(
-                    resolve, 
-                    (error) => {
-                        reject(new Error(
-                            error.code === 1 ? 'تم رفض إذن الموقع' : 
-                            error.code === 2 ? 'لا يمكن تحديد الموقع' : 
-                            'مهلة الاتفاق انتهت'
-                        ));
-                    },
-                    {
-                        enableHighAccuracy: true,
-                        timeout: 10000,
-                        maximumAge: 0
-                    }
-                );
-            });
-        }
+      const a = Math.sin(Δφ/2) * Math.sin(Δφ/2) +
+                Math.cos(φ1) * Math.cos(φ2) *
+                Math.sin(Δλ/2) * Math.sin(Δλ/2);
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
 
-        function calculateDistance(lat1, lon1, lat2, lon2) {
-            const R = 6371e3; // نصف قطر الأرض بالأمتار
-            const φ1 = lat1 * Math.PI/180;
-            const φ2 = lat2 * Math.PI/180;
-            const Δφ = (lat2-lat1) * Math.PI/180;
-            const Δλ = (lon2-lon1) * Math.PI/180;
-
-            const a = Math.sin(Δφ/2) * Math.sin(Δφ/2) +
-                      Math.cos(φ1) * Math.cos(φ2) *
-                      Math.sin(Δλ/2) * Math.sin(Δλ/2);
-            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-
-            return R * c;
-        }
-
-        function showStatus(message, type) {
-            const statusDiv = document.getElementById('status');
-            statusDiv.textContent = message;
-            statusDiv.className = type;
-            statusDiv.style.display = 'block';
-            
-            setTimeout(() => {
-                statusDiv.style.opacity = '0';
-                setTimeout(() => {
-                    statusDiv.style.display = 'none';
-                    statusDiv.style.opacity = '1';
-                }, 500);
-            }, 5000);
-        }
-    </script>
+      return R * c;
+    }
+  </script>
 </body>
 </html>
