@@ -95,7 +95,7 @@
     const companyLat = 33.30272379350701; // إحداثيات الشركة
     const companyLng = 44.454624509349316;
     const maxDistance = 500; // بالمتر
-    const scriptURL = "https://script.google.com/macros/s/AKfycbwNeoGxPkUworOBZJi18_L93hp5jJlpCcxHKllye7-u4oxHQOjF7rvNEZ59Fh0GfErl/exec"; // ضع رابط Google Script هنا
+    const scriptURL = "https://script.google.com/macros/s/AKfycbzOTg_GDQo2cZdtsdTGL7Z1uoZRV2FFb0Kv1-jqM6slN8cKNlsHLSklvBZr_x71SGg5/exec"; // ضع رابط Google Script هنا
 
     window.onload = function () {
       const name = localStorage.getItem("employeeName");
@@ -135,45 +135,53 @@ function saveName() {
 }
 
 
-    function submitAction(actionType) {
-      const name = localStorage.getItem("employeeName");
-      if (!navigator.geolocation) {
-        alert("المتصفح لا يدعم تحديد الموقع.");
-        return;
-      }
+function submitAction(actionType) {
+  const name = localStorage.getItem("employeeName");
 
-      navigator.geolocation.getCurrentPosition(position => {
-        const lat = position.coords.latitude;
-        const lng = position.coords.longitude;
-        const distance = getDistanceFromLatLonInMeters(lat, lng, companyLat, companyLng);
+  if (!navigator.geolocation) {
+    alert("المتصفح لا يدعم تحديد الموقع.");
+    return;
+  }
 
-        if (distance > maxDistance) {
-          alert("يجب أن تكون داخل محيط الشركة (500 متر).");
-          return;
-        }
+  navigator.geolocation.getCurrentPosition(position => {
+    const lat = position.coords.latitude;
+    const lng = position.coords.longitude;
+    const distance = getDistanceFromLatLonInMeters(lat, lng, companyLat, companyLng);
 
-        const payload = {
-          name: name,
-          action: actionType,
-          timestamp: new Date().toISOString()
-        };
-
-        fetch(scriptURL, {
-          method: 'POST',
-          body: JSON.stringify(payload)
-        })
-        .then(res => res.text())
-        .then(response => {
-          document.getElementById("status").innerText = `✅ تم تسجيل ${actionType} بنجاح`;
-        })
-        .catch(err => {
-          document.getElementById("status").innerText = `❌ حدث خطأ أثناء الإرسال`;
-        });
-
-      }, () => {
-        alert("فشل في الحصول على الموقع.");
-      });
+    if (distance > maxDistance) {
+      alert("يجب أن تكون داخل محيط الشركة (500 متر).");
+      return;
     }
+
+    const payload = {
+      name: name,
+      action: actionType,
+      timestamp: new Date().toISOString()
+    };
+
+    fetch(scriptURL, {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    })
+    .then(res => res.json())
+    .then(response => {
+      if (response.status === "duplicate") {
+        document.getElementById("status").innerText = `⚠️ ${response.message}`;
+      } else if (response.status === "success") {
+        document.getElementById("status").innerText = `✅ ${response.message}`;
+      } else {
+        document.getElementById("status").innerText = `❌ حدث خطأ غير متوقع`;
+      }
+    })
+    .catch(err => {
+      document.getElementById("status").innerText = `❌ فشل في الإرسال.`;
+    });
+
+  }, () => {
+    alert("فشل في الحصول على الموقع.");
+  });
+}
+
 
     function getDistanceFromLatLonInMeters(lat1, lon1, lat2, lon2) {
       const R = 6371e3;
