@@ -95,7 +95,7 @@
     const companyLat = 36.187569088643755; // إحداثيات الشركة
     const companyLng = 44.02087388992448;
     const maxDistance = 1000; // بالمتر
-    const scriptURL = "https://script.google.com/macros/s/AKfycbxzv_rZgIjUJJwIdk9DDVlkn9gpXs-qyup94FLsOKICDqLgE7WfK66gmKh0D7s7AeL2/exec"; // ضع رابط Google Script هنا
+    const scriptURL = "https://script.google.com/macros/s/AKfycbwNeoGxPkUworOBZJi18_L93hp5jJlpCcxHKllye7-u4oxHQOjF7rvNEZ59Fh0GfErl/exec"; // ضع رابط Google Script هنا
 
     window.onload = function () {
       const name = localStorage.getItem("employeeName");
@@ -106,15 +106,34 @@
       }
     };
 
-    function saveName() {
-      const name = document.getElementById("nameInput").value.trim();
-      if (name.length < 3) {
-        alert("يرجى إدخال الاسم بشكل صحيح.");
-        return;
-      }
+function saveName() {
+  const name = document.getElementById("nameInput").value.trim();
+  const words = name.split(" ").filter(w => w.length > 0);
+
+  if (words.length < 2) {
+    alert("يجب إدخال الاسم الثنائي على الأقل.");
+    return;
+  }
+
+  // تحقق من التكرار عبر Google Sheets
+  fetch(scriptURL, {
+    method: "POST",
+    body: JSON.stringify({ name: name, checkName: true })
+  })
+  .then(res => res.json())
+  .then(data => {
+    if (data.exists) {
+      alert("❗ هذا الاسم مسجل مسبقًا. يرجى استخدام اسم مختلف.");
+    } else {
       localStorage.setItem("employeeName", name);
       location.reload();
     }
+  })
+  .catch(() => {
+    alert("حدث خطأ أثناء التحقق من الاسم.");
+  });
+}
+
 
     function submitAction(actionType) {
       const name = localStorage.getItem("employeeName");
