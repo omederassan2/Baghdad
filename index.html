@@ -86,16 +86,18 @@
 
   <div id="buttons" style="display: none;">
     <p>مرحبًا <strong id="userName"></strong></p>
-    <button style="background-color:#2196F3" onclick="submitAction('الوصول')">📍 وصلت إلى الشركة</button>
-    <button style="background-color:#f44336" onclick="submitAction('الخروج')">🚪 خرجت من الشركة</button>
+    <button id="arrivalBtn" style="background-color:#2196F3" onclick="submitAction('الوصول')">📍 وصلت إلى الشركة</button>
+    <button id="departureBtn" style="background-color:#f44336" onclick="submitAction('الخروج')">🚪 خرجت من الشركة</button>
     <p id="status"></p>
   </div>
 
   <script>
     const companyLat = 33.30272379350701; // إحداثيات الشركة
     const companyLng = 44.454624509349316;
-    const maxDistance = 500; // بالمتر
-    const scriptURL = "https://script.google.com/macros/s/AKfycbzOTg_GDQo2cZdtsdTGL7Z1uoZRV2FFb0Kv1-jqM6slN8cKNlsHLSklvBZr_x71SGg5/exec"; // ضع رابط Google Script هنا
+    const maxDistance = 5555500; // بالمتر
+    const scriptURL = "https://script.google.com/macros/s/AKfycbzOTg_GDQo2cZdtsdTGL7Z1uoZRV2FFb0Kv1-jqM6slN8cKNlsHLSklvBZr_x71SGg5/exec"; // رابط Google Script
+
+    let isSubmitting = false; // متغير لمنع التكرار
 
     window.onload = function () {
       const name = localStorage.getItem("employeeName");
@@ -106,82 +108,111 @@
       }
     };
 
-function saveName() {
-  const name = document.getElementById("nameInput").value.trim();
-  const words = name.split(" ").filter(w => w.length > 0);
+    function saveName() {
+      const name = document.getElementById("nameInput").value.trim();
+      const words = name.split(" ").filter(w => w.length > 0);
 
-  if (words.length < 2) {
-    alert("يجب إدخال الاسم الثنائي على الأقل.");
-    return;
-  }
-
-  // تحقق من التكرار عبر Google Sheets
-  fetch(scriptURL, {
-    method: "POST",
-    body: JSON.stringify({ name: name, checkName: true })
-  })
-  .then(res => res.json())
-  .then(data => {
-    if (data.exists) {
-      alert("❗ هذا الاسم مسجل مسبقًا. يرجى استخدام اسم مختلف.");
-    } else {
-      localStorage.setItem("employeeName", name);
-      location.reload();
-    }
-  })
-  .catch(() => {
-    alert("حدث خطأ أثناء التحقق من الاسم.");
-  });
-}
-
-
-function submitAction(actionType) {
-  const name = localStorage.getItem("employeeName");
-
-  if (!navigator.geolocation) {
-    alert("المتصفح لا يدعم تحديد الموقع.");
-    return;
-  }
-
-  navigator.geolocation.getCurrentPosition(position => {
-    const lat = position.coords.latitude;
-    const lng = position.coords.longitude;
-    const distance = getDistanceFromLatLonInMeters(lat, lng, companyLat, companyLng);
-
-    if (distance > maxDistance) {
-      alert("يجب أن تكون داخل محيط الشركة (500 متر).");
-      return;
-    }
-
-    const payload = {
-      name: name,
-      action: actionType,
-      timestamp: new Date().toISOString()
-    };
-
-    fetch(scriptURL, {
-      method: 'POST',
-      body: JSON.stringify(payload)
-    })
-    .then(res => res.json())
-    .then(response => {
-      if (response.status === "duplicate") {
-        document.getElementById("status").innerText = `⚠️ ${response.message}`;
-      } else if (response.status === "success") {
-        document.getElementById("status").innerText = `✅ ${response.message}`;
-      } else {
-        document.getElementById("status").innerText = `❌ حدث خطأ غير متوقع`;
+      if (words.length < 2) {
+        alert("يجب إدخال الاسم الثنائي على الأقل.");
+        return;
       }
-    })
-    .catch(err => {
-      document.getElementById("status").innerText = `❌ فشل في الإرسال.`;
-    });
 
-  }, () => {
-    alert("فشل في الحصول على الموقع.");
-  });
-}
+      fetch(scriptURL, {
+        method: "POST",
+        body: JSON.stringify({ name: name, checkName: true })
+      })
+      .then(res => res.json())
+      .then(data => {
+        if (data.exists) {
+          alert("❗ هذا الاسم مسجل مسبقًا. يرجى استخدام اسم مختلف.");
+        } else {
+          localStorage.setItem("employeeName", name);
+          location.reload();
+        }
+      })
+      .catch(() => {
+        alert("حدث خطأ أثناء التحقق من الاسم.");
+      });
+    }
 
+    function submitAction(actionType) {
+      if (isSubmitting) return; // منع التكرار
+      isSubmitting = true;
+
+      const name = localStorage.getItem("employeeName");
+      const arrivalBtn = document.getElementById("arrivalBtn");
+      const departureBtn = document.getElementById("departureBtn");
+
+      // تعطيل الأزرار مؤقتًا
+      arrivalBtn.disabled = true;
+      departureBtn.disabled = true;
+
+      // تغيير نص الزر
+      const originalArrivalText = arrivalBtn.innerHTML;
+      const originalDepartureText = departureBtn.innerHTML;
+      if (actionType === 'الوصول') {
+        arrivalBtn.innerHTML = "⏳ جاري الإرسال...";
+      } else {
+        departureBtn.innerHTML = "⏳ جاري الإرسال...";
+      }
+
+      if (!navigator.geolocation) {
+        alert("المتصفح لا يدعم تحديد الموقع.");
+        resetButtons();
+        return;
+      }
+
+      navigator.geolocation.getCurrentPosition(position => {
+        const lat = position.coords.latitude;
+        const lng = position.coords.longitude;
+        const distance = getDistanceFromLatLonInMeters(lat, lng, companyLat, companyLng);
+
+        if (distance > maxDistance) {
+          alert("يجب أن تكون داخل محيط الشركة (500 متر).");
+          resetButtons();
+          return;
+        }
+
+        const payload = {
+          name: name,
+          action: actionType,
+          timestamp: new Date().toISOString()
+        };
+
+        fetch(scriptURL, {
+          method: 'POST',
+          body: JSON.stringify(payload)
+        })
+        .then(res => res.json())
+        .then(response => {
+          if (response.status === "duplicate") {
+            document.getElementById("status").innerText = `⚠️ ${response.message}`;
+          } else if (response.status === "success") {
+            document.getElementById("status").innerText = `✅ ${response.message}`;
+          } else {
+            document.getElementById("status").innerText = `❌ حدث خطأ غير متوقع`;
+          }
+        })
+        .catch(() => {
+          document.getElementById("status").innerText = `❌ فشل في الإرسال.`;
+        })
+        .finally(() => {
+          resetButtons();
+        });
+
+      }, () => {
+        alert("فشل في الحصول على الموقع.");
+        resetButtons();
+      });
+
+      function resetButtons() {
+        isSubmitting = false;
+        arrivalBtn.disabled = false;
+        departureBtn.disabled = false;
+        arrivalBtn.innerHTML = originalArrivalText;
+        departureBtn.innerHTML = originalDepartureText;
+      }
+    }
 
     function getDistanceFromLatLonInMeters(lat1, lon1, lat2, lon2) {
       const R = 6371e3;
